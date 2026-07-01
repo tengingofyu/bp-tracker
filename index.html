@@ -1,0 +1,890 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Pressure">
+<meta name="theme-color" content="#F7F8FA">
+<title>Pressure — BP Tracker</title>
+<style>
+  :root{
+    --paper:#F7F8FA; --surface:#FFFFFF; --ink:#1B2430; --muted:#6B7686;
+    --line:#E4E8EE; --accent:#0F8B8D; --accent-ink:#0A6567;
+    --good:#2E9E63;     --good-fill:#E3F4EA;
+    --elevated:#D9A21F; --elevated-fill:#FBF0D5;
+    --watch:#DE7C2E;    --watch-fill:#FBE4CF;
+    --high:#D64545;     --high-fill:#F7D9D9;
+    --crisis:#A81E1E;   --crisis-fill:#EFC5C5;
+    --shadow:0 1px 2px rgba(27,36,48,.06),0 4px 16px rgba(27,36,48,.05);
+    --radius:16px;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{
+    font-family:var(--font); background:var(--paper); color:var(--ink);
+    font-size:16px; line-height:1.4;
+    padding:0 0 calc(72px + env(safe-area-inset-bottom));
+    -webkit-font-smoothing:antialiased;
+  }
+  .num{font-variant-numeric:tabular-nums;font-feature-settings:"tnum" 1}
+  h1,h2,h3{margin:0;font-weight:650;letter-spacing:-.01em}
+  button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
+  .app{max-width:520px;margin:0 auto;padding:0 16px}
+
+  /* ---- top bar ---- */
+  .topbar{position:sticky;top:0;z-index:20;background:var(--paper);
+    padding:calc(12px + env(safe-area-inset-top)) 0 10px;display:flex;align-items:baseline;gap:10px}
+  .topbar h1{font-size:20px}
+  .topbar .sub{font-size:12.5px;color:var(--muted);font-weight:500}
+
+  /* ---- crisis / info banners ---- */
+  .banner{border-radius:var(--radius);padding:12px 14px;margin:0 0 14px;font-size:13.5px;line-height:1.45;display:flex;gap:10px;align-items:flex-start}
+  .banner.crisis{background:var(--crisis-fill);color:#6E1414;border:1px solid #E3A3A3}
+  .banner.nudge{background:#EAF6F6;color:var(--accent-ink);border:1px solid #BFE3E3}
+  .banner .x{margin-left:auto;font-size:18px;line-height:1;color:inherit;opacity:.55;padding:2px 4px}
+  .banner strong{font-weight:650}
+
+  /* ---- cards ---- */
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+  .card h2{display:flex;align-items:center;gap:8px;font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);font-weight:650;margin-bottom:12px}
+  .card h2 .hint{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:500;font-size:12px;color:var(--muted)}
+  .card h2 .pill{margin-left:auto;flex:none;text-transform:none;letter-spacing:normal}
+
+  /* ---- log screen ---- */
+  .entry{display:flex;gap:12px;margin-bottom:14px}
+  .field{flex:1;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
+  .field label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650;margin-bottom:8px}
+  .stepper{display:flex;align-items:center;justify-content:center;gap:6px}
+  .stepper button{width:34px;height:34px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:20px;color:var(--accent-ink);font-weight:600;flex:none}
+  .stepper button:active{background:var(--paper)}
+  .stepper input{width:64px;border:none;background:transparent;text-align:center;font-size:30px;font-weight:680;color:var(--ink);padding:0}
+  .stepper input:focus{outline:none}
+  .unit{font-size:11px;color:var(--muted);margin-top:2px}
+  .pulse-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .pulse-row .field{flex:0 0 auto;padding:10px 12px;display:flex;align-items:center;gap:10px;text-align:left}
+  .pulse-row .field label{margin:0}
+  .pulse-row input.pulse{width:56px;border:none;background:transparent;font-size:22px;font-weight:650;color:var(--ink);text-align:center}
+  .pulse-row input.pulse:focus{outline:none}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
+  .chip{padding:7px 13px;border-radius:999px;background:var(--paper);border:1px solid var(--line);font-size:13px;color:var(--muted);font-weight:500}
+  .chip.on{background:var(--accent);border-color:var(--accent);color:#fff}
+  textarea.note{width:100%;border:1px solid var(--line);border-radius:12px;background:var(--paper);padding:10px 12px;font-family:inherit;font-size:14px;resize:none;color:var(--ink)}
+  textarea.note:focus{outline:none;border-color:var(--accent)}
+  .when{display:flex;align-items:center;justify-content:space-between;margin:2px 0 14px;font-size:13px;color:var(--muted)}
+  .when button{color:var(--accent-ink);font-weight:600;font-size:13px}
+  .when input{font-family:inherit;font-size:13px;border:1px solid var(--line);border-radius:8px;padding:4px 6px;background:var(--surface);color:var(--ink)}
+  .save{width:100%;background:var(--accent);color:#fff;font-size:16px;font-weight:650;padding:15px;border-radius:14px;box-shadow:var(--shadow)}
+  .save:active{background:var(--accent-ink)}
+  .save:disabled{opacity:.45}
+  .live-cat{min-height:28px;display:flex;align-items:center;justify-content:center;margin:2px 0 12px;font-size:13px;font-weight:600}
+
+  /* ---- category pills / dots ---- */
+  .dot{width:11px;height:11px;border-radius:50%;display:inline-block;flex:none}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:650}
+  .c-good{color:var(--good)} .b-good{background:var(--good)} .f-good{background:var(--good-fill);color:#1C6B41}
+  .c-elevated{color:var(--elevated)} .b-elevated{background:var(--elevated)} .f-elevated{background:var(--elevated-fill);color:#8A6410}
+  .c-watch{color:var(--watch)} .b-watch{background:var(--watch)} .f-watch{background:var(--watch-fill);color:#94491A}
+  .c-high{color:var(--high)} .b-high{background:var(--high)} .f-high{background:var(--high-fill);color:#8A2020}
+  .c-crisis{color:var(--crisis)} .b-crisis{background:var(--crisis)} .f-crisis{background:var(--crisis-fill);color:#6E1414}
+
+  /* ---- history ---- */
+  .row{display:flex;align-items:center;gap:12px;padding:12px 4px;border-bottom:1px solid var(--line)}
+  .row:last-child{border-bottom:none}
+  .row .rd{font-size:19px;font-weight:680}
+  .row .rd small{font-size:12px;font-weight:500;color:var(--muted)}
+  .row .meta{margin-left:auto;text-align:right;font-size:12px;color:var(--muted)}
+  .row .tags{font-size:11px;color:var(--muted)}
+  .rowbtn{color:var(--muted);font-size:12px;padding:6px;font-weight:600}
+  .empty{text-align:center;color:var(--muted);padding:34px 16px;font-size:14px;line-height:1.5}
+  .empty b{color:var(--ink);display:block;margin-bottom:4px;font-size:15px}
+
+  /* ---- analytics ---- */
+  .segbar{display:flex;gap:6px;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:14px}
+  .segbar button{flex:1;padding:8px;border-radius:9px;font-size:13px;font-weight:600;color:var(--muted)}
+  .segbar button.on{background:var(--accent);color:#fff}
+  .bignums{display:flex;gap:10px;margin-bottom:4px}
+  .bignum{flex:1;min-width:0;text-align:center}
+  .bignum .v{font-size:34px;font-weight:700;line-height:1}
+  .bignum .l{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650;margin-top:5px}
+  .bignum .sub{font-size:11px;color:var(--muted);margin-top:3px}
+  .sep{width:1px;background:var(--line);align-self:stretch;margin:4px 0}
+  .collecting{text-align:center;color:var(--muted);font-size:13.5px;padding:18px 8px;line-height:1.5}
+  .collecting .bar{height:6px;background:var(--line);border-radius:3px;margin:10px auto 0;max-width:220px;overflow:hidden}
+  .collecting .bar i{display:block;height:100%;background:var(--accent);border-radius:3px}
+  .kv{display:flex;justify-content:space-between;padding:7px 0;font-size:14px;border-bottom:1px solid var(--line)}
+  .kv:last-child{border-bottom:none}
+  .kv .k{color:var(--muted)}
+  .kv .v{font-weight:600}
+  .distbar{display:flex;height:26px;border-radius:8px;overflow:hidden;margin:4px 0 10px}
+  .distbar span{display:block}
+  .distleg{display:flex;flex-wrap:wrap;gap:10px 16px;font-size:12px;color:var(--muted)}
+  .distleg span{display:inline-flex;align-items:center;gap:6px}
+  .trend{display:flex;align-items:center;gap:12px}
+  .trend .arrow{font-size:30px;line-height:1}
+  .trend .tx{font-size:13.5px;color:var(--muted);line-height:1.4}
+  .trend .tx b{color:var(--ink);font-size:15px}
+  figure{margin:0}
+  svg{display:block;width:100%;height:auto}
+  .chart-cap{font-size:12px;color:var(--muted);margin-top:8px;line-height:1.45}
+
+  /* ---- data screen ---- */
+  .btnrow{display:flex;gap:10px;margin-bottom:6px}
+  .btn{flex:1;padding:13px;border-radius:12px;font-size:14.5px;font-weight:650;border:1px solid var(--line);background:var(--paper);color:var(--ink);text-align:center}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .btn:active{opacity:.85}
+  .status{font-size:13px;color:var(--muted);line-height:1.6}
+  .status b{color:var(--ink);font-weight:600}
+  .status .ok{color:var(--good);font-weight:600}
+  .status .warn{color:var(--watch);font-weight:600}
+  table.ref{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  table.ref td{padding:7px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  table.ref tr:last-child td{border-bottom:none}
+  table.ref .zc{white-space:nowrap;font-weight:650}
+  .disclaimer{font-size:11.5px;color:var(--muted);line-height:1.5;margin-top:10px}
+
+  /* ---- bottom nav ---- */
+  nav{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(247,248,250,.92);
+    backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);
+    border-top:1px solid var(--line);display:flex;padding-bottom:env(safe-area-inset-bottom)}
+  nav button{flex:1;padding:9px 0 8px;display:flex;flex-direction:column;align-items:center;gap:3px;color:var(--muted);font-size:11px;font-weight:600}
+  nav button.on{color:var(--accent)}
+  nav .ic{width:24px;height:24px}
+  .view{display:none;animation:fade .18s ease}
+  .view.on{display:block}
+  @keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+  /* ---- modal ---- */
+  .modal{position:fixed;inset:0;z-index:50;background:rgba(27,36,48,.4);display:none;align-items:flex-end;justify-content:center}
+  .modal.on{display:flex}
+  .sheet{background:var(--surface);width:100%;max-width:520px;border-radius:20px 20px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -8px 30px rgba(0,0,0,.15)}
+  .sheet h3{font-size:17px;margin-bottom:8px}
+  .sheet p{font-size:14px;color:var(--muted);line-height:1.5;margin:0 0 16px}
+  .toast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translateX(-50%);
+    background:var(--ink);color:#fff;padding:11px 18px;border-radius:999px;font-size:13.5px;font-weight:600;
+    z-index:60;opacity:0;pointer-events:none;transition:opacity .2s,transform .2s;white-space:nowrap}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <h1>Pressure</h1>
+    <span class="sub" id="profileLabel">personal log</span>
+  </div>
+
+  <div id="banners"></div>
+
+  <!-- ===================== LOG ===================== -->
+  <section class="view on" id="v-log">
+    <div class="card">
+      <h2>New reading</h2>
+      <div class="entry">
+        <div class="field">
+          <label>Systolic</label>
+          <div class="stepper">
+            <button data-step="sys" data-d="-1" aria-label="decrease systolic">–</button>
+            <input class="num" id="sys" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="—">
+            <button data-step="sys" data-d="1" aria-label="increase systolic">+</button>
+          </div>
+          <div class="unit">mmHg · upper</div>
+        </div>
+        <div class="field">
+          <label>Diastolic</label>
+          <div class="stepper">
+            <button data-step="dia" data-d="-1" aria-label="decrease diastolic">–</button>
+            <input class="num" id="dia" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="—">
+            <button data-step="dia" data-d="1" aria-label="increase diastolic">+</button>
+          </div>
+          <div class="unit">mmHg · lower</div>
+        </div>
+      </div>
+
+      <div class="live-cat" id="liveCat">&nbsp;</div>
+
+      <div class="pulse-row">
+        <div class="field">
+          <label>Pulse</label>
+          <input class="pulse num" id="pulse" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="—">
+        </div>
+        <span style="font-size:12px;color:var(--muted)">optional · bpm</span>
+      </div>
+
+      <div class="chips" id="chips"></div>
+      <textarea class="note" id="note" rows="1" placeholder="Note (optional) — e.g. after coffee, felt fine"></textarea>
+
+      <div class="when">
+        <span id="whenText">Now</span>
+        <button id="whenEdit">Change time</button>
+      </div>
+      <div class="when" id="whenEditor" style="display:none">
+        <input type="datetime-local" id="whenInput">
+        <button id="whenReset">Reset to now</button>
+      </div>
+
+      <button class="save" id="saveBtn" disabled>Save reading</button>
+    </div>
+  </section>
+
+  <!-- ===================== HISTORY ===================== -->
+  <section class="view" id="v-history">
+    <div class="card">
+      <h2>History <span class="hint" id="histCount"></span></h2>
+      <div id="histList"></div>
+    </div>
+  </section>
+
+  <!-- ===================== ANALYTICS ===================== -->
+  <section class="view" id="v-analytics">
+    <div class="segbar" id="winSeg">
+      <button data-w="7" class="on">7d</button>
+      <button data-w="14">14d</button>
+      <button data-w="30">30d</button>
+      <button data-w="all">All</button>
+    </div>
+    <div id="analytics"></div>
+  </section>
+
+  <!-- ===================== DATA ===================== -->
+  <section class="view" id="v-data">
+    <div class="card">
+      <h2>Backup &amp; restore</h2>
+      <div class="btnrow">
+        <button class="btn primary" id="exportBtn">Export CSV</button>
+        <button class="btn" id="importBtn">Import CSV</button>
+      </div>
+      <input type="file" id="importFile" accept=".csv,text/csv" style="display:none">
+      <p class="status" id="backupStatus"></p>
+    </div>
+
+    <div class="card">
+      <h2>Storage</h2>
+      <p class="status" id="storageStatus"></p>
+    </div>
+
+    <div class="card">
+      <h2>Category reference <span class="hint">home standard 135/85</span></h2>
+      <table class="ref" id="refTable"></table>
+      <p class="disclaimer" id="refNote"></p>
+    </div>
+
+    <div class="card">
+      <h2>About</h2>
+      <p class="status">Readings are stored only on this device. Nothing is uploaded, and there is no account. Export regularly — that CSV is your only backup and the way to move to a new phone.</p>
+    </div>
+  </section>
+</div>
+
+<!-- bottom nav -->
+<nav id="nav">
+  <button data-v="log" class="on">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+    Log
+  </button>
+  <button data-v="history">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    History
+  </button>
+  <button data-v="analytics">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19V5M4 19h16M8 16v-5M12 16V8M16 16v-3"/></svg>
+    Trends
+  </button>
+  <button data-v="data">
+    <svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7c0-1.5 3.6-2.5 8-2.5s8 1 8 2.5-3.6 2.5-8 2.5S4 8.5 4 7z"/><path d="M4 7v10c0 1.5 3.6 2.5 8 2.5s8-1 8-2.5V7"/><path d="M4 12c0 1.5 3.6 2.5 8 2.5s8-1 8-2.5"/></svg>
+    Data
+  </button>
+</nav>
+
+<div class="modal" id="modal"><div class="sheet" id="sheet"></div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   Pressure — offline BP tracker. Single file, IndexedDB, no network.
+   Logic mirrors the Node-tested module (31/31 passing).
+   ============================================================ */
+(function(){
+"use strict";
+
+const DAY = 86400000;
+const PROFILE = "default";
+const TAGS = ["morning","evening","post-coffee","post-exercise","stressed","rested"];
+
+/* ---- category logic (worst-first cascade) ----
+   Home-monitoring standard: 135/85 = hypertension cutoff.
+   Matches Singapore MOH/ACE guidance and the international
+   (ESC/ESH, ISH, NICE, WHO) 140/90-clinic family. Worst axis wins. */
+const CATS = {
+  good:    {label:"Normal",   cls:"good"},
+  elevated:{label:"Elevated", cls:"elevated"},
+  high:    {label:"High",     cls:"high"},
+  crisis:  {label:"Crisis",   cls:"crisis"}
+};
+function categorize(sys, dia){
+  if (sys>=180 || dia>=120) return "crisis";   // acute range
+  if (sys>=140 || dia>=90)  return "high";     // ≈ office hypertension
+  if (sys>=135 || dia>=85)  return "elevated"; // home hypertension cutoff
+  return "good";                               // under 135 and under 85
+}
+
+/* ---- math helpers ---- */
+const mean = a => a.length ? a.reduce((x,y)=>x+y,0)/a.length : null;
+function sd(a){ if(a.length<2) return null; const m=mean(a); return Math.sqrt(a.reduce((x,y)=>x+(y-m)*(y-m),0)/(a.length-1)); }
+function historySpanDays(rs, now){ if(!rs.length) return 0; const e=Math.min(...rs.map(r=>r.ts)); return Math.floor((now-e)/DAY); }
+
+function windowStats(rs, win, now){
+  const inf = win==="all";
+  const spanOk = inf ? rs.length>0 : historySpanDays(rs,now) >= win;
+  if(!spanOk) return {status:"collecting", spanDays:historySpanDays(rs,now), need:win};
+  const from = inf ? -Infinity : now - win*DAY;
+  const w = rs.filter(r=>r.ts>=from && r.ts<=now);
+  if(!w.length) return {status:"empty"};
+  const S=w.map(r=>r.systolic), D=w.map(r=>r.diastolic), P=w.filter(r=>r.pulse!=null).map(r=>r.pulse);
+  return {status:"ok", n:w.length, readings:w,
+    sys:mean(S), dia:mean(D), pulse:mean(P),
+    sysSd:sd(S), diaSd:sd(D),
+    sysMin:Math.min(...S), sysMax:Math.max(...S), diaMin:Math.min(...D), diaMax:Math.max(...D),
+    category:categorize(Math.round(mean(S)), Math.round(mean(D)))};
+}
+function amPmSplit(rs){
+  const am=[],pm=[]; for(const r of rs){ (new Date(r.ts).getHours()<12?am:pm).push(r); }
+  const agg=a=>a.length?{n:a.length,sys:mean(a.map(r=>r.systolic)),dia:mean(a.map(r=>r.diastolic))}:{n:0};
+  return {am:agg(am), pm:agg(pm)};
+}
+function distribution(rs){
+  const c={good:0,elevated:0,high:0,crisis:0};
+  for(const r of rs) c[categorize(r.systolic,r.diastolic)]++;
+  return {counts:c, total:rs.length};
+}
+function trend(rs, key, now){
+  if(rs.length<6) return {status:"insufficient"};
+  if(historySpanDays(rs,now)<7) return {status:"insufficient"};
+  const t0=Math.min(...rs.map(r=>r.ts));
+  const xs=rs.map(r=>(r.ts-t0)/(7*DAY)), ys=rs.map(r=>r[key]);
+  const mx=mean(xs),my=mean(ys); let num=0,den=0;
+  for(let i=0;i<xs.length;i++){num+=(xs[i]-mx)*(ys[i]-my);den+=(xs[i]-mx)*(xs[i]-mx);}
+  if(den===0) return {status:"insufficient"};
+  const slope=num/den, dir=Math.abs(slope)<0.5?"flat":(slope>0?"rising":"falling");
+  return {status:"ok", slopePerWeek:slope, dir, intercept:my-slope*mx, t0};
+}
+
+/* ============================================================
+   IndexedDB
+   ============================================================ */
+let db=null;
+function openDB(){
+  return new Promise((res,rej)=>{
+    const rq=indexedDB.open("pressure",1);
+    rq.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains("readings")){
+        const s=d.createObjectStore("readings",{keyPath:"id"});
+        s.createIndex("ts","ts");
+      }
+      if(!d.objectStoreNames.contains("meta")) d.createObjectStore("meta",{keyPath:"k"});
+    };
+    rq.onsuccess=e=>{db=e.target.result;res();};
+    rq.onerror=e=>rej(e.target.error);
+  });
+}
+function tx(store,mode){ return db.transaction(store,mode).objectStore(store); }
+function idbAll(){ return new Promise((res,rej)=>{const r=tx("readings","readonly").getAll();r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);}); }
+function idbPut(rec){ return new Promise((res,rej)=>{const r=tx("readings","readwrite").put(rec);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);}); }
+function idbDel(id){ return new Promise((res,rej)=>{const r=tx("readings","readwrite").delete(id);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);}); }
+function metaGet(k){ return new Promise(res=>{const r=tx("meta","readonly").get(k);r.onsuccess=()=>res(r.result?r.result.v:null);r.onerror=()=>res(null);}); }
+function metaSet(k,v){ return new Promise(res=>{const r=tx("meta","readwrite").put({k,v});r.onsuccess=()=>res();r.onerror=()=>res();}); }
+
+/* ============================================================
+   State + helpers
+   ============================================================ */
+let readings=[];   // sorted desc by ts
+let draft={sys:"",dia:"",pulse:"",tags:new Set(),note:"",ts:null};
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const uuid=()=>(crypto.randomUUID?crypto.randomUUID():"id-"+Date.now()+"-"+Math.random().toString(16).slice(2));
+const pad=n=>String(n).padStart(2,"0");
+function fmtDate(ts){const d=new Date(ts);const now=new Date();const sameDay=d.toDateString()===now.toDateString();
+  const yday=new Date(now-DAY).toDateString()===d.toDateString();
+  const t=`${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  if(sameDay) return `Today ${t}`; if(yday) return `Yesterday ${t}`;
+  return `${d.getDate()} ${d.toLocaleString('en',{month:'short'})} ${t}`;}
+function localInputValue(ts){const d=new Date(ts-d0off(ts));return d.toISOString().slice(0,16);}
+function d0off(ts){return new Date(ts).getTimezoneOffset()*60000;}
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("on");setTimeout(()=>t.classList.remove("on"),1900);}
+
+/* ============================================================
+   LOG screen
+   ============================================================ */
+function renderChips(){
+  const c=$("#chips");c.innerHTML="";
+  TAGS.forEach(t=>{
+    const b=document.createElement("button");
+    b.className="chip"+(draft.tags.has(t)?" on":"");b.textContent=t;
+    b.onclick=()=>{draft.tags.has(t)?draft.tags.delete(t):draft.tags.add(t);renderChips();};
+    c.appendChild(b);
+  });
+}
+function refreshLive(){
+  const s=parseInt($("#sys").value,10), d=parseInt($("#dia").value,10);
+  const el=$("#liveCat");
+  if(Number.isFinite(s)&&Number.isFinite(d)){
+    const cat=categorize(s,d),info=CATS[cat];
+    el.innerHTML=`<span class="pill f-${info.cls}"><span class="dot b-${info.cls}"></span>${info.label}</span>`;
+    $("#saveBtn").disabled = !(s>d && s>=50 && s<=300 && d>=30 && d<=200);
+  } else { el.innerHTML=`<span style="color:var(--muted);font-weight:500">Enter both numbers to see the zone</span>`; $("#saveBtn").disabled=true; }
+}
+function bindLog(){
+  $$("#chips");renderChips();
+  ["sys","dia","pulse"].forEach(id=>{
+    $("#"+id).addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,3);refreshLive();});
+  });
+  $$('[data-step]').forEach(b=>b.onclick=()=>{
+    const el=$("#"+b.dataset.step);let v=parseInt(el.value,10);if(!Number.isFinite(v))v=b.dataset.step==="sys"?120:80;
+    v=Math.max(0,v+parseInt(b.dataset.d,10));el.value=v;refreshLive();
+  });
+  $("#whenEdit").onclick=()=>{
+    const ts=draft.ts||Date.now();
+    $("#whenInput").value=localInputValue(ts);
+    $("#whenEditor").style.display="flex";$("#whenEdit").style.display="none";
+  };
+  $("#whenInput").onchange=e=>{
+    if(e.target.value){draft.ts=new Date(e.target.value).getTime();$("#whenText").textContent=fmtDate(draft.ts);}
+  };
+  $("#whenReset").onclick=()=>{draft.ts=null;$("#whenText").textContent="Now";$("#whenEditor").style.display="none";$("#whenEdit").style.display="inline";};
+  $("#saveBtn").onclick=saveReading;
+}
+async function saveReading(){
+  const s=parseInt($("#sys").value,10),d=parseInt($("#dia").value,10),p=parseInt($("#pulse").value,10);
+  if(!(s>d)){toast("Systolic must be above diastolic");return;}
+  const rec={id:uuid(),profileId:PROFILE,systolic:s,diastolic:d,pulse:Number.isFinite(p)?p:null,
+    ts:draft.ts||Date.now(),tags:[...draft.tags],note:$("#note").value.trim(),createdAt:Date.now()};
+  await idbPut(rec);
+  await requestPersistOnce();
+  // reset draft
+  $("#sys").value="";$("#dia").value="";$("#pulse").value="";$("#note").value="";
+  draft.tags.clear();draft.ts=null;$("#whenText").textContent="Now";$("#whenEditor").style.display="none";$("#whenEdit").style.display="inline";
+  renderChips();refreshLive();
+  await loadReadings();
+  toast("Reading saved");
+  if(rec.systolic>=180||rec.diastolic>=120) renderBanners();
+}
+
+/* ============================================================
+   HISTORY
+   ============================================================ */
+function renderHistory(){
+  const list=$("#histList");
+  $("#histCount").textContent=readings.length?`${readings.length} total`:"";
+  if(!readings.length){
+    list.innerHTML=`<div class="empty"><b>No readings yet</b>Log your first one on the Log tab. Aim for a couple a day and the trends fill in on their own.</div>`;
+    return;
+  }
+  list.innerHTML="";
+  readings.forEach(r=>{
+    const cat=categorize(r.systolic,r.diastolic),info=CATS[cat];
+    const row=document.createElement("div");row.className="row";
+    const tagStr=(r.tags&&r.tags.length)?r.tags.join(" · "):"";
+    row.innerHTML=`
+      <span class="dot b-${info.cls}"></span>
+      <div>
+        <div class="rd num">${r.systolic}/${r.diastolic} <small>${r.pulse?("♥ "+r.pulse):""}</small></div>
+        ${tagStr?`<div class="tags">${tagStr}</div>`:""}
+      </div>
+      <div class="meta">
+        <div>${fmtDate(r.ts)}</div>
+        <button class="rowbtn" data-edit="${r.id}">Edit</button>
+        <button class="rowbtn" data-del="${r.id}">Delete</button>
+      </div>`;
+    list.appendChild(row);
+  });
+  $$('[data-del]').forEach(b=>b.onclick=()=>confirmDelete(b.dataset.del));
+  $$('[data-edit]').forEach(b=>b.onclick=()=>editReading(b.dataset.edit));
+}
+function confirmDelete(id){
+  const r=readings.find(x=>x.id===id);
+  openSheet(`<h3>Delete this reading?</h3><p>${r.systolic}/${r.diastolic} · ${fmtDate(r.ts)}. This can't be undone.</p>
+    <div class="btnrow"><button class="btn" id="mCancel">Keep it</button><button class="btn primary" id="mOk" style="background:var(--high);border-color:var(--high)">Delete</button></div>`);
+  $("#mCancel").onclick=closeSheet;
+  $("#mOk").onclick=async()=>{await idbDel(id);await loadReadings();closeSheet();toast("Deleted");};
+}
+function editReading(id){
+  const r=readings.find(x=>x.id===id);
+  openSheet(`<h3>Edit reading</h3>
+    <div class="entry">
+      <div class="field"><label>Systolic</label><div class="stepper"><input class="num" id="eSys" inputmode="numeric" maxlength="3" value="${r.systolic}"></div></div>
+      <div class="field"><label>Diastolic</label><div class="stepper"><input class="num" id="eDia" inputmode="numeric" maxlength="3" value="${r.diastolic}"></div></div>
+      <div class="field"><label>Pulse</label><div class="stepper"><input class="num" id="ePulse" inputmode="numeric" maxlength="3" value="${r.pulse??""}"></div></div>
+    </div>
+    <div class="when" style="margin-bottom:14px"><span>Time</span><input type="datetime-local" id="eWhen" value="${localInputValue(r.ts)}"></div>
+    <div class="btnrow"><button class="btn" id="mCancel">Cancel</button><button class="btn primary" id="mOk">Save changes</button></div>`);
+  $("#mCancel").onclick=closeSheet;
+  $("#mOk").onclick=async()=>{
+    const s=parseInt($("#eSys").value,10),d=parseInt($("#eDia").value,10),p=parseInt($("#ePulse").value,10);
+    if(!(s>d)){toast("Systolic must be above diastolic");return;}
+    r.systolic=s;r.diastolic=d;r.pulse=Number.isFinite(p)?p:null;
+    if($("#eWhen").value) r.ts=new Date($("#eWhen").value).getTime();
+    await idbPut(r);await loadReadings();closeSheet();toast("Updated");
+  };
+}
+
+/* ============================================================
+   ANALYTICS
+   ============================================================ */
+let curWin="7";
+function renderAnalytics(){
+  const now=Date.now();
+  const wrap=$("#analytics");
+  if(!readings.length){
+    wrap.innerHTML=`<div class="card"><div class="empty"><b>Nothing to analyse yet</b>Trends, averages and your zone map appear here once you've logged a few readings.</div></div>`;
+    return;
+  }
+  const asc=[...readings].sort((a,b)=>a.ts-b.ts);
+  const st=windowStats(asc, curWin==="all"?"all":parseInt(curWin,10), now);
+
+  let html="";
+
+  /* --- averages card --- */
+  html+=`<div class="card"><h2>Average`;
+  if(st.status==="collecting"){
+    const pct=Math.min(100,Math.round(st.spanDays/st.need*100));
+    html+=`</h2><div class="collecting">Building your ${st.need}-day average — <b>${st.spanDays} of ${st.need} days</b> of history so far.
+      <div class="bar"><i style="width:${pct}%"></i></div>
+      <div style="margin-top:8px">Keep logging; it'll show automatically. Try “All” to see everything you have now.</div></div></div>`;
+  } else if(st.status==="empty"){
+    html+=`</h2><div class="collecting">No readings in the last ${winLabel()}. Switch to “All”, or log a new one.</div></div>`;
+  } else {
+    const info=CATS[st.category];
+    html+=`<span class="pill f-${info.cls}"><span class="dot b-${info.cls}"></span>${info.label}</span></h2>
+      <div class="bignums">
+        <div class="bignum"><div class="v num c-${info.cls}">${Math.round(st.sys)}</div><div class="l">Systolic</div><div class="sub">SD ±${st.sysSd?st.sysSd.toFixed(0):"–"} · ${st.sysMin}–${st.sysMax}</div></div>
+        <div class="sep"></div>
+        <div class="bignum"><div class="v num c-${info.cls}">${Math.round(st.dia)}</div><div class="l">Diastolic</div><div class="sub">SD ±${st.diaSd?st.diaSd.toFixed(0):"–"} · ${st.diaMin}–${st.diaMax}</div></div>
+        ${st.pulse!=null?`<div class="sep"></div><div class="bignum"><div class="v num" style="color:var(--muted)">${Math.round(st.pulse)}</div><div class="l">Pulse</div><div class="sub">avg bpm</div></div>`:""}
+      </div>
+      <div class="chart-cap">Average of ${st.n} reading${st.n>1?"s":""}. Category is applied to the average, not single readings.</div>
+    </div>`;
+  }
+
+  /* --- zone chart (signature) --- */
+  html+=`<div class="card"><h2>Zone map</h2><figure>${zoneChartSVG(st)}</figure>
+    <div class="chart-cap">Systolic × diastolic. The ring is your ${st.status==="ok"?winLabel()+" average":"latest"}; faint dots are individual readings. A point sits in the <em>worse</em> of its two axes — a fine systolic can still land in a higher zone on diastolic alone.</div></div>`;
+
+  /* --- trend --- */
+  const tS=trend(asc,"systolic",now), tD=trend(asc,"diastolic",now);
+  html+=`<div class="card"><h2>Trend <span class="hint">whole history</span></h2>`;
+  if(tS.status!=="ok"){
+    html+=`<div class="collecting">A trend line needs at least 6 readings spanning a week. Keep logging — it'll appear here.</div>`;
+  } else {
+    const arrow=tS.dir==="rising"?"↗":tS.dir==="falling"?"↘":"→";
+    const col=tS.dir==="rising"?"var(--high)":tS.dir==="falling"?"var(--good)":"var(--muted)";
+    const word=tS.dir==="flat"?"holding steady":tS.dir==="rising"?"drifting up":"easing down";
+    html+=`<div class="trend"><div class="arrow" style="color:${col}">${arrow}</div>
+      <div class="tx">Systolic is <b>${word}</b> — about ${tS.slopePerWeek>=0?"+":""}${tS.slopePerWeek.toFixed(1)} mmHg/week${tD.status==="ok"?`, diastolic ${tD.slopePerWeek>=0?"+":""}${tD.slopePerWeek.toFixed(1)}/week`:""}. <span style="color:var(--muted)">Indicative only — regression over few, noisy points.</span></div></div>
+      <figure style="margin-top:14px">${seriesChartSVG(asc,tS,tD,now)}</figure>`;
+  }
+  html+=`</div>`;
+
+  /* --- AM/PM --- */
+  const winRs = st.status==="ok"?st.readings:asc;
+  const ap=amPmSplit(winRs);
+  html+=`<div class="card"><h2>Morning vs evening <span class="hint">split at noon</span></h2>`;
+  if(!ap.am.n&&!ap.pm.n){html+=`<div class="collecting">No readings to split yet.</div>`;}
+  else{
+    html+=`<div class="bignums">
+      <div class="bignum"><div class="v num">${ap.am.n?Math.round(ap.am.sys)+"/"+Math.round(ap.am.dia):"—"}</div><div class="l">AM · before 12:00</div><div class="sub">${ap.am.n} reading${ap.am.n===1?"":"s"}</div></div>
+      <div class="sep"></div>
+      <div class="bignum"><div class="v num">${ap.pm.n?Math.round(ap.pm.sys)+"/"+Math.round(ap.pm.dia):"—"}</div><div class="l">PM · from 12:00</div><div class="sub">${ap.pm.n} reading${ap.pm.n===1?"":"s"}</div></div>
+    </div><div class="chart-cap">“Morning” here means before noon by device time — a rough proxy for near-waking readings, not a clinical waking-window measure.</div>`;
+  }
+  html+=`</div>`;
+
+  /* --- distribution --- */
+  const dist=distribution(winRs);
+  html+=`<div class="card"><h2>Where your readings land <span class="hint">${dist.total} reading${dist.total===1?"":"s"}</span></h2><div class="distbar">`;
+  ["good","elevated","high","crisis"].forEach(k=>{
+    const w=dist.total?dist.counts[k]/dist.total*100:0;
+    if(w>0) html+=`<span class="b-${k}" style="width:${w}%" title="${CATS[k].label} ${dist.counts[k]}"></span>`;
+  });
+  html+=`</div><div class="distleg">`;
+  ["good","elevated","high","crisis"].forEach(k=>{
+    html+=`<span><span class="dot b-${k}"></span>${CATS[k].label} · ${dist.counts[k]}</span>`;
+  });
+  html+=`</div></div>`;
+
+  wrap.innerHTML=html;
+}
+function winLabel(){return curWin==="all"?"all readings":curWin==="7"?"last 7 days":curWin==="14"?"last 14 days":"last 30 days";}
+
+/* ---- chart palette (literal hex; iOS Safari does not reliably resolve var() in SVG attrs) ---- */
+const ZFILL={good:"#CDE9D8",elevated:"#F4E3B0",high:"#F0C4C4",crisis:"#DFA0A0"}; // zone-map cells (deeper, readable)
+const PALE ={good:"#E3F4EA",elevated:"#FBF0D5",high:"#F7D9D9",crisis:"#EFC5C5"}; // series background (soft)
+const CINK="#1B2430", CMUT="#6B7686", CACC="#0F8B8D", CACCINK="#0A6567", CGRID="#8E9AAB";
+
+/* ---- SVG: 2D zone chart ---- */
+function zoneChartSVG(st){
+  const W=340,H=300,padL=42,padB=34,padT=10,padR=10;
+  const sysMin=90,sysMax=190, diaMin=50,diaMax=125;
+  const plotW=W-padL-padR, plotH=H-padT-padB;
+  const x=d=>padL+(d-diaMin)/(diaMax-diaMin)*plotW;
+  const y=s=>padT+(sysMax-s)/(sysMax-sysMin)*plotH;
+  let cells="";
+  const step=5;
+  for(let s=sysMin;s<sysMax;s+=step){
+    for(let d=diaMin;d<diaMax;d+=step){
+      const cat=categorize(s+step/2, d+step/2);
+      const x0=x(d),x1=x(d+step),y0=y(s+step),y1=y(s);
+      cells+=`<rect x="${x0.toFixed(1)}" y="${y1.toFixed(1)}" width="${(x1-x0).toFixed(1)}" height="${(y0-y1).toFixed(1)}" fill="${ZFILL[cat]}"/>`;
+    }
+  }
+  let ticks="";
+  for(let s=100;s<=180;s+=20) ticks+=`<text x="${padL-6}" y="${(y(s)+4).toFixed(1)}" text-anchor="end" font-size="10" fill="${CMUT}">${s}</text>`;
+  for(let d=60;d<=120;d+=20) ticks+=`<text x="${x(d).toFixed(1)}" y="${H-padB+16}" text-anchor="middle" font-size="10" fill="${CMUT}">${d}</text>`;
+  let guides="";
+  [135,140].forEach(s=>{guides+=`<line x1="${padL}" y1="${y(s)}" x2="${W-padR}" y2="${y(s)}" stroke="${CGRID}" stroke-width="1" opacity=".45"/>`;});
+  [85,90].forEach(d=>{guides+=`<line x1="${x(d)}" y1="${padT}" x2="${x(d)}" y2="${H-padB}" stroke="${CGRID}" stroke-width="1" opacity=".45"/>`;});
+  const labels=`<text x="${x(diaMax-2).toFixed(1)}" y="${(y(sysMax-8)).toFixed(1)}" text-anchor="end" font-size="10" font-weight="600" fill="#B23B3B" opacity=".85">High</text>`+
+               `<text x="${x(diaMin+2).toFixed(1)}" y="${(H-padB-6).toFixed(1)}" font-size="10" font-weight="600" fill="#2F7E52" opacity=".9">Normal</text>`;
+  let dots="",ring="";
+  const rs = st.status==="ok"?st.readings:readings;
+  rs.forEach(r=>{
+    const cx=x(Math.min(Math.max(r.diastolic,diaMin),diaMax-1)), cy=y(Math.min(Math.max(r.systolic,sysMin+1),sysMax));
+    dots+=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="3" fill="${CINK}" opacity=".28"/>`;
+  });
+  if(st.status==="ok"){
+    const cx=x(Math.min(Math.max(st.dia,diaMin),diaMax-1)), cy=y(Math.min(Math.max(st.sys,sysMin+1),sysMax));
+    ring=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="9" fill="${CACC}" opacity=".18"/>
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="none" stroke="${CACC}" stroke-width="2.5"/>
+          <circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.5" fill="${CACC}"/>`;
+  } else if(readings.length){
+    const last=readings[0];
+    const cx=x(Math.min(Math.max(last.diastolic,diaMin),diaMax-1)), cy=y(Math.min(Math.max(last.systolic,sysMin+1),sysMax));
+    ring=`<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="6" fill="none" stroke="${CACC}" stroke-width="2.5"/><circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="2.5" fill="${CACC}"/>`;
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Blood pressure zone map">
+    ${cells}${guides}${labels}
+    <text x="12" y="${padT+plotH/2}" transform="rotate(-90 12 ${padT+plotH/2})" text-anchor="middle" font-size="10" fill="${CMUT}">Systolic</text>
+    <text x="${padL+plotW/2}" y="${H-4}" text-anchor="middle" font-size="10" fill="${CMUT}">Diastolic</text>
+    ${ticks}${dots}${ring}
+  </svg>`;
+}
+
+/* ---- SVG: time series with trend ---- */
+function seriesChartSVG(asc,tS,tD,now){
+  const W=340,H=180,padL=34,padR=10,padT=10,padB=22;
+  const plotW=W-padL-padR,plotH=H-padT-padB;
+  const t0=asc[0].ts,t1=asc[asc.length-1].ts,span=Math.max(1,t1-t0);
+  const vals=asc.flatMap(r=>[r.systolic,r.diastolic]);
+  const vMin=Math.min(90,Math.min(...vals)-5), vMax=Math.max(150,Math.max(...vals)+5);
+  const x=t=>padL+(t-t0)/span*plotW;
+  const y=v=>padT+(vMax-v)/(vMax-vMin)*plotH;
+  let bands="";
+  const segs=[["good",vMin,135],["elevated",135,140],["high",140,vMax]];
+  segs.forEach(([c,a,b])=>{const yb=y(a),yt=y(b);bands+=`<rect x="${padL}" y="${yt}" width="${plotW}" height="${(yb-yt).toFixed(1)}" fill="${PALE[c]}"/>`;});
+  const line=(key,col)=>{
+    let d="";asc.forEach((r,i)=>{d+=(i?"L":"M")+x(r.ts).toFixed(1)+" "+y(r[key]).toFixed(1)+" ";});
+    let pts="";asc.forEach(r=>{pts+=`<circle cx="${x(r.ts).toFixed(1)}" cy="${y(r[key]).toFixed(1)}" r="2.4" fill="${col}"/>`;});
+    return `<path d="${d}" fill="none" stroke="${col}" stroke-width="1.8" stroke-linejoin="round"/>${pts}`;
+  };
+  let tl="";
+  if(tS.status==="ok"){
+    const wk=t=>(t-tS.t0)/(7*DAY);
+    const yA=tS.intercept+tS.slopePerWeek*wk(t0), yB=tS.intercept+tS.slopePerWeek*wk(t1);
+    tl=`<line x1="${x(t0)}" y1="${y(yA).toFixed(1)}" x2="${x(t1)}" y2="${y(yB).toFixed(1)}" stroke="${CINK}" stroke-width="1.6" stroke-dasharray="5 4" opacity=".65"/>`;
+  }
+  let yt="";for(let v=100;v<=Math.min(180,vMax);v+=20) yt+=`<text x="${padL-5}" y="${(y(v)+3).toFixed(1)}" text-anchor="end" font-size="9" fill="${CMUT}">${v}</text>`;
+  const dLbl=t=>{const d=new Date(t);return d.getDate()+"/"+(d.getMonth()+1);};
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Blood pressure over time">
+    ${bands}${yt}
+    ${line("diastolic","#7A8698")}
+    ${line("systolic",CACCINK)}
+    ${tl}
+    <text x="${padL}" y="${H-6}" font-size="9" fill="${CMUT}">${dLbl(t0)}</text>
+    <text x="${W-padR}" y="${H-6}" text-anchor="end" font-size="9" fill="${CMUT}">${dLbl(t1)}</text>
+  </svg>`;
+}
+
+/* ============================================================
+   DATA screen — export/import, storage, reference
+   ============================================================ */
+function csvEscape(v){v=v==null?"":String(v);return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;}
+function toCSV(rs){
+  const head=["id","profileId","ts_iso","systolic","diastolic","pulse","tags","note"];
+  const lines=[head.join(",")];
+  rs.forEach(r=>lines.push([r.id,r.profileId,new Date(r.ts).toISOString(),r.systolic,r.diastolic,r.pulse??"",(r.tags||[]).join("|"),r.note||""].map(csvEscape).join(",")));
+  return lines.join("\n");
+}
+function parseCSV(text){
+  const rows=[];let i=0,f="",row=[],q=false;
+  while(i<text.length){const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i++;} else q=false; } else f+=c; }
+    else{ if(c==='"')q=true; else if(c===","){row.push(f);f="";} else if(c==="\n"){row.push(f);rows.push(row);row=[];f="";} else if(c==="\r"){} else f+=c; }
+    i++;
+  }
+  if(f.length||row.length){row.push(f);rows.push(row);}
+  return rows.filter(r=>r.length>1||(r.length===1&&r[0]!==""));
+}
+async function exportCSV(){
+  if(!readings.length){toast("Nothing to export yet");return;}
+  const csv=toCSV([...readings].sort((a,b)=>a.ts-b.ts));
+  const blob=new Blob([csv],{type:"text/csv"});
+  const url=URL.createObjectURL(blob);const a=document.createElement("a");
+  a.href=url;a.download=`pressure-${new Date().toISOString().slice(0,10)}.csv`;
+  document.body.appendChild(a);a.click();a.remove();URL.revokeObjectURL(url);
+  await metaSet("lastExport",Date.now());renderData();toast("CSV exported");
+}
+function importCSV(){ $("#importFile").click(); }
+async function handleImportFile(e){
+  const file=e.target.files[0];if(!file)return;
+  const text=await file.text();e.target.value="";
+  let rows;try{rows=parseCSV(text);}catch(err){toast("Couldn't read that file");return;}
+  if(!rows.length){toast("File looks empty");return;}
+  const head=rows[0].map(h=>h.trim());
+  const idx=k=>head.indexOf(k);
+  const need=["ts_iso","systolic","diastolic"];
+  if(need.some(k=>idx(k)<0)){toast("Not a Pressure CSV — missing columns");return;}
+  const existing=new Set(readings.map(r=>r.id));
+  const incoming=[];let dup=0,bad=0;
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r];if(!row||row.every(c=>c==="")) continue;
+    const sys=parseInt(row[idx("systolic")],10),dia=parseInt(row[idx("diastolic")],10);
+    const ts=Date.parse(row[idx("ts_iso")]);
+    if(!Number.isFinite(sys)||!Number.isFinite(dia)||!Number.isFinite(ts)){bad++;continue;}
+    const id=idx("id")>=0&&row[idx("id")]?row[idx("id")]:uuid();
+    if(existing.has(id)){dup++;continue;}
+    const pulseRaw=idx("pulse")>=0?row[idx("pulse")]:"";
+    const pulse=pulseRaw!==""&&Number.isFinite(parseInt(pulseRaw,10))?parseInt(pulseRaw,10):null;
+    const tags=idx("tags")>=0&&row[idx("tags")]?row[idx("tags")].split("|").filter(Boolean):[];
+    incoming.push({id,profileId:PROFILE,systolic:sys,diastolic:dia,pulse,ts,tags,note:idx("note")>=0?row[idx("note")]:"",createdAt:Date.now()});
+  }
+  // confirm BEFORE writing — never silent overwrite/merge
+  openSheet(`<h3>Import summary</h3>
+    <p><b>${incoming.length}</b> new reading${incoming.length===1?"":"s"} to add.<br>
+    ${dup} duplicate${dup===1?"":"s"} skipped (already on this device).<br>
+    ${bad?bad+" row(s) skipped as unreadable.<br>":""}
+    Nothing already on your device will be changed or deleted — this only adds new rows.</p>
+    <div class="btnrow"><button class="btn" id="mCancel">Cancel</button><button class="btn primary" id="mOk"${incoming.length?"":" disabled"}>Add ${incoming.length}</button></div>`);
+  $("#mCancel").onclick=closeSheet;
+  $("#mOk").onclick=async()=>{
+    for(const rec of incoming) await idbPut(rec);
+    await loadReadings();closeSheet();toast(`Added ${incoming.length}`);
+  };
+}
+function renderData(){
+  // backup status
+  metaGet("lastExport").then(le=>{
+    const el=$("#backupStatus");
+    if(!readings.length){el.innerHTML="Log a reading first, then export to keep a safe copy.";return;}
+    if(!le){el.innerHTML=`<span class="warn">Never backed up.</span> Export now — this CSV is your only copy if the browser clears its storage.`;return;}
+    const days=Math.floor((Date.now()-le)/DAY);
+    const stale=days>=7;
+    el.innerHTML=`Last backup <b>${days===0?"today":days+" day"+(days===1?"":"s")+" ago"}</b>. `+
+      (stale?`<span class="warn">Worth exporting again.</span>`:`<span class="ok">You're covered.</span>`);
+  });
+  // storage status
+  renderStorageStatus();
+  // reference table
+  const rows=[
+    ["good","Normal","under 135 and under 85"],
+    ["elevated","Elevated","135–139 or 85–89"],
+    ["high","High","140+ or 90+"],
+    ["crisis","Crisis","180+ or 120+"]
+  ];
+  $("#refTable").innerHTML=rows.map(([c,l,r])=>
+    `<tr><td class="zc"><span class="pill f-${c}"><span class="dot b-${c}"></span>${l}</span></td><td class="num" style="color:var(--muted)">${r}</td></tr>`
+  ).join("");
+  $("#refNote").innerHTML=`These are <em>home-monitoring</em> thresholds: 135/85 is the widely used cut-off for raised home blood pressure, equivalent to 140/90 measured in a clinic. A reading takes the <em>worse</em> of its two numbers. This is the standard used by Singapore's MOH/ACE guidance and, internationally, by the ESC, ISH, NICE and WHO — the near-universal 140/90 family. (The US ACC/AHA uses a lower 130/80 cut-off, which most other countries did not adopt.) Averages over several days matter far more than any single reading. For self-monitoring only — not a diagnosis, and not a substitute for your doctor.
+    <br><br><b>Sources</b> — check them yourself:
+    <br>• <a href="https://www.primarycarepages.sg/healthier-sg/care-protocols/chronic-care-protocols/hypertension" target="_blank" rel="noopener" style="color:var(--accent-ink)">Singapore MOH / ACE — Hypertension chronic care protocol</a>
+    <br>• <a href="https://academic.oup.com/eurheartj/article/45/38/3912/7741010" target="_blank" rel="noopener" style="color:var(--accent-ink)">2024 ESC Guidelines for elevated blood pressure &amp; hypertension</a>
+    <br>• <a href="https://www.acc.org/Latest-in-Cardiology/ten-points-to-remember/2017/11/09/11/41/2017-Guideline-for-High-Blood-Pressure-in-Adults" target="_blank" rel="noopener" style="color:var(--accent-ink)">ACC/AHA hypertension guideline (US 130/80 reference)</a>`;
+}
+async function renderStorageStatus(){
+  const el=$("#storageStatus");let out=[];
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone===true;
+  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent);
+  let persisted=false;
+  if(navigator.storage&&navigator.storage.persisted){try{persisted=await navigator.storage.persisted();}catch(e){}}
+  out.push(persisted?`<span class="ok">Persistent storage granted</span> — the browser won't evict your data under pressure.`
+                    :`Storage is in best-effort mode. It'll be requested automatically as you log.`);
+  if(isIOS&&!standalone){
+    out.push(`<span class="warn">Running in Safari.</span> On iPhone, add this to your Home Screen (Share → Add to Home Screen) so Safari's 7-day cleanup can't wipe your log.`);
+  } else if(standalone){
+    out.push(`<span class="ok">Installed to Home Screen</span> — safe from Safari's 7-day cleanup.`);
+  }
+  if(navigator.storage&&navigator.storage.estimate){
+    try{const est=await navigator.storage.estimate();const kb=(est.usage/1024).toFixed(0);out.push(`Using about ${kb} KB.`);}catch(e){}
+  }
+  el.innerHTML=out.join("<br>");
+}
+
+let persistTried=false;
+async function requestPersistOnce(){
+  if(persistTried) return;persistTried=true;
+  if(navigator.storage&&navigator.storage.persist){
+    try{ if(!(await navigator.storage.persisted())) await navigator.storage.persist(); }catch(e){}
+  }
+}
+
+/* ============================================================
+   Banners (crisis + install nudge)
+   ============================================================ */
+async function renderBanners(){
+  const box=$("#banners");box.innerHTML="";
+  // crisis: most recent reading in crisis range
+  const last=readings[0];
+  if(last && (last.systolic>=180||last.diastolic>=120)){
+    box.innerHTML+=`<div class="banner crisis"><span>⚠</span><div>Your latest reading (<strong>${last.systolic}/${last.diastolic}</strong>) is in the range generally considered to warrant prompt medical attention. If you feel unwell, don't wait on an app — seek care.</div></div>`;
+  }
+  // one-time install nudge on iOS Safari
+  const standalone=window.matchMedia("(display-mode: standalone)").matches||window.navigator.standalone===true;
+  const isIOS=/iP(hone|ad|od)/.test(navigator.userAgent);
+  const dismissed=await metaGet("nudgeDismissed");
+  if(isIOS&&!standalone&&!dismissed&&readings.length>=1){
+    box.innerHTML+=`<div class="banner nudge"><span>📌</span><div><strong>Keep your log safe.</strong> Add Pressure to your Home Screen (Share → Add to Home Screen). Otherwise Safari may clear it after a week unused.</div><button class="x" id="nudgeX" aria-label="dismiss">×</button></div>`;
+    setTimeout(()=>{const b=$("#nudgeX");if(b)b.onclick=async()=>{await metaSet("nudgeDismissed",1);renderBanners();};},0);
+  }
+}
+
+/* ============================================================
+   Modal / nav / boot
+   ============================================================ */
+function openSheet(html){$("#sheet").innerHTML=html;$("#modal").classList.add("on");}
+function closeSheet(){$("#modal").classList.remove("on");}
+$("#modal").addEventListener("click",e=>{if(e.target.id==="modal")closeSheet();});
+
+function switchView(v){
+  $$(".view").forEach(s=>s.classList.remove("on"));
+  $("#v-"+v).classList.add("on");
+  $$("#nav button").forEach(b=>b.classList.toggle("on",b.dataset.v===v));
+  if(v==="history")renderHistory();
+  if(v==="analytics")renderAnalytics();
+  if(v==="data")renderData();
+  window.scrollTo(0,0);
+}
+$$("#nav button").forEach(b=>b.onclick=()=>switchView(b.dataset.v));
+$$("#winSeg button").forEach(b=>b.onclick=()=>{curWin=b.dataset.w;$$("#winSeg button").forEach(x=>x.classList.toggle("on",x===b));renderAnalytics();});
+$("#exportBtn").onclick=exportCSV;
+$("#importBtn").onclick=importCSV;
+$("#importFile").addEventListener("change",handleImportFile);
+
+async function loadReadings(){
+  readings=(await idbAll()).sort((a,b)=>b.ts-a.ts);
+  // refresh whatever view is active
+  const active=$$(".view.on")[0];
+  if(active){const id=active.id.replace("v-","");if(id==="history")renderHistory();if(id==="analytics")renderAnalytics();if(id==="data")renderData();}
+  renderBanners();
+}
+async function boot(){
+  await openDB();
+  bindLog();refreshLive();
+  await loadReadings();
+}
+boot();
+})();
+</script>
+</body>
+</html>

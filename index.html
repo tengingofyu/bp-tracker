@@ -55,19 +55,19 @@
 
   /* ---- log screen ---- */
   .entry{display:flex;gap:12px;margin-bottom:14px}
-  .field{flex:1;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center}
-  .field label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650;margin-bottom:8px}
-  .stepper{display:flex;align-items:center;justify-content:center;gap:8px}
-  .stepper button{width:34px;height:34px;border-radius:10px;background:var(--surface);border:1px solid var(--line);font-size:20px;color:var(--accent-ink);font-weight:600;flex:none}
-  .stepper button:active{background:var(--paper)}
-  .stepper input{flex:1;min-width:0;width:auto;max-width:90px;border:none;background:transparent;text-align:center;font-size:clamp(23px,6.6vw,30px);font-weight:680;color:var(--ink);padding:0}
-  .stepper input:focus{outline:none}
+  .field{flex:1;min-width:0;background:var(--paper);border:1px solid var(--line);border-radius:14px;padding:12px 12px 10px;text-align:center;transition:border-color .15s,background .15s}
+  .field:focus-within{border-color:var(--accent);background:#fff}
+  .field label{display:block;font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:650;margin-bottom:6px}
+  .bpinput{width:100%;border:none;background:transparent;text-align:center;font-size:34px;font-weight:700;color:var(--ink);padding:2px 0;letter-spacing:-.01em}
+  .bpinput:focus{outline:none}
+  .bpinput::placeholder{color:#C3CBD5;font-weight:600}
   .unit{font-size:11px;color:var(--muted);margin-top:2px}
   .pulse-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
   .pulse-row .field{flex:0 0 auto;padding:10px 12px;display:flex;align-items:center;gap:10px;text-align:left}
   .pulse-row .field label{margin:0}
   .pulse-row input.pulse{width:56px;border:none;background:transparent;font-size:22px;font-weight:650;color:var(--ink);text-align:center}
   .pulse-row input.pulse:focus{outline:none}
+  .pulse-row input.pulse::placeholder{color:#C3CBD5;font-weight:600}
 
   .chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:14px}
   .chip{padding:7px 13px;border-radius:999px;background:var(--paper);border:1px solid var(--line);font-size:13px;color:var(--muted);font-weight:500}
@@ -170,11 +170,9 @@
   @media (max-width:380px){
     .app{padding:0 12px}
     .card{padding:14px}
-    .field{padding:10px}
+    .field{padding:10px 10px 8px}
     .entry{gap:10px}
-    .stepper{gap:3px}
-    .stepper button{width:30px;height:30px;font-size:17px}
-    .stepper input{font-size:22px}
+    .bpinput{font-size:31px}
   }
   @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
   :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
@@ -197,20 +195,12 @@
       <div class="entry">
         <div class="field">
           <label>Systolic</label>
-          <div class="stepper">
-            <button data-step="sys" data-d="-1" aria-label="decrease systolic">–</button>
-            <input class="num" id="sys" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="—">
-            <button data-step="sys" data-d="1" aria-label="increase systolic">+</button>
-          </div>
+          <input class="bpinput num" id="sys" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="120">
           <div class="unit">mmHg · upper</div>
         </div>
         <div class="field">
           <label>Diastolic</label>
-          <div class="stepper">
-            <button data-step="dia" data-d="-1" aria-label="decrease diastolic">–</button>
-            <input class="num" id="dia" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="—">
-            <button data-step="dia" data-d="1" aria-label="increase diastolic">+</button>
-          </div>
+          <input class="bpinput num" id="dia" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="80">
           <div class="unit">mmHg · lower</div>
         </div>
       </div>
@@ -220,7 +210,7 @@
       <div class="pulse-row">
         <div class="field">
           <label>Pulse</label>
-          <input class="pulse num" id="pulse" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="—">
+          <input class="pulse num" id="pulse" inputmode="numeric" pattern="[0-9]*" maxlength="3" placeholder="70">
         </div>
         <span style="font-size:12px;color:var(--muted)">optional · bpm</span>
       </div>
@@ -452,10 +442,6 @@ function bindLog(){
   ["sys","dia","pulse"].forEach(id=>{
     $("#"+id).addEventListener("input",e=>{e.target.value=e.target.value.replace(/\D/g,"").slice(0,3);refreshLive();});
   });
-  $$('[data-step]').forEach(b=>b.onclick=()=>{
-    const el=$("#"+b.dataset.step);let v=parseInt(el.value,10);if(!Number.isFinite(v))v=b.dataset.step==="sys"?120:80;
-    v=Math.max(0,v+parseInt(b.dataset.d,10));el.value=v;refreshLive();
-  });
   $("#whenEdit").onclick=()=>{
     const ts=draft.ts||Date.now();
     $("#whenInput").value=localInputValue(ts);
@@ -525,9 +511,9 @@ function editReading(id){
   const r=readings.find(x=>x.id===id);
   openSheet(`<h3>Edit reading</h3>
     <div class="entry">
-      <div class="field"><label>Systolic</label><div class="stepper"><input class="num" id="eSys" inputmode="numeric" maxlength="3" value="${r.systolic}"></div></div>
-      <div class="field"><label>Diastolic</label><div class="stepper"><input class="num" id="eDia" inputmode="numeric" maxlength="3" value="${r.diastolic}"></div></div>
-      <div class="field"><label>Pulse</label><div class="stepper"><input class="num" id="ePulse" inputmode="numeric" maxlength="3" value="${r.pulse??""}"></div></div>
+      <div class="field"><label>Systolic</label><input class="bpinput num" id="eSys" inputmode="numeric" maxlength="3" value="${r.systolic}"></div>
+      <div class="field"><label>Diastolic</label><input class="bpinput num" id="eDia" inputmode="numeric" maxlength="3" value="${r.diastolic}"></div>
+      <div class="field"><label>Pulse</label><input class="bpinput num" id="ePulse" inputmode="numeric" maxlength="3" value="${r.pulse??""}"></div>
     </div>
     <div class="when" style="margin-bottom:14px"><span>Time</span><input type="datetime-local" id="eWhen" value="${localInputValue(r.ts)}"></div>
     <div class="btnrow"><button class="btn" id="mCancel">Cancel</button><button class="btn primary" id="mOk">Save changes</button></div>`);
